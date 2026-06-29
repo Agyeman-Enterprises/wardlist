@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const supabase = {
   async upsert(table, data) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    const res = await fetch(`${SUPABASE_URL}/${table}`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_ANON_KEY,
@@ -21,14 +21,14 @@ const supabase = {
   },
   async fetchAll(table) {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${table}?select=*&order=created_at.desc`,
+      `${SUPABASE_URL}/${table}?select=*&order=created_at.desc`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
   async delete(table, id) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    const res = await fetch(`${SUPABASE_URL}/${table}?id=eq.${id}`, {
       method: "DELETE",
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
