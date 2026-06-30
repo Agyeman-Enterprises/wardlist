@@ -2,77 +2,182 @@
 
 @theme {
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --color-deep-teal-900: #0D554A;
-  --color-deep-teal-800: #0A3F37;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
   --color-page: #F5F3EF;
   --color-card: #FEFDFB;
   --color-surface: #FAF8F5;
+
+  --color-border-warm: #E7E3DC;
+  --color-border-strong: #D4CFC6;
+
+  --color-deep-teal-900: #0D554A;
+  --color-deep-teal-800: #0A3F37;
+  --color-deep-teal-700: #0E6C5E;
+  
+  --color-clay-50: #FFF7ED;
+  --color-clay-100: #FEF3C7;
+  --color-clay-700: #C2410C;
+
+  --color-sage-50: #F0FDF4;
+  --color-sage-100: #DCFCE7;
+  --color-sage-700: #15803D;
+
+  --color-violet-50: #F5F3FF;
+  --color-violet-700: #5B4F8B;
+  --color-violet-800: #443A6B;
+
+  --color-forest-50: #F0FDF4;
+  --color-forest-700: #2D6A4F;
+  --color-forest-800: #1E4D38;
 }
 
-/* ── WardList Design Tokens ───────────────────────────────────────────── */
-:root {
-  /* Page & surfaces */
-  --color-page:            #F5F3EF;
-  --color-card:            #FEFDFB;
-  --color-surface:         #FAF8F5;
-
-  /* Borders */
-  --color-border:          #E7E3DC;
-  --color-border-strong:   #D4CFC6;
-
-  /* Text */
-  --color-text:            #1E1B18;
-  --color-text-secondary:  #6B6560;
-  --color-text-muted:      #9D9790;
-
-  /* Accents */
-  --color-primary:         #0D554A;
-  --color-primary-hover:   #0A3F37;
-  --color-info:            #5B4F8B;
-  --color-info-hover:      #443A6B;
-  --color-orders:          #2D6A4F;
-  --color-orders-hover:    #1E4D38;
-  --color-danger:          #B91C1C;
-  --color-danger-hover:    #991B1B;
-  --color-success:         #166534;
-  --color-warning:         #92400E;
-
-  /* Radius */
-  --radius-sm:  4px;
-  --radius-md:  6px;
-  --radius-lg:  8px;
-  --radius-xl:  12px;
-
-  /* Type */
-  --font-sans:  'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
-}
-
-/* ── Reset ────────────────────────────────────────────────────────────── */
+/* ── Reset & Body ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background: var(--color-page);
   -webkit-font-smoothing: antialiased;
   font-family: var(--font-sans);
+  color: #1E1B18;
 }
 
-/* ── Print ────────────────────────────────────────────────────────────── */
+/* Custom transitions and spinners */
+.animate-spin-slow {
+  animation: spin 2s linear infinite;
+}
+
+/* ── Medical Fishbone Diagrams ─────────────────────────────────────────── */
+.chem7-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.2fr;
+  grid-template-rows: repeat(2, 1fr);
+  border-collapse: collapse;
+}
+
+.chem7-cell {
+  position: relative;
+  padding: 4px;
+}
+
+/* Chem-7 Borders representing classic clinical skeleton */
+.chem7-na   { border-right: 2px solid var(--color-border-strong); border-bottom: 2px solid var(--color-border-strong); }
+.chem7-cl   { border-right: 2px solid var(--color-border-strong); border-bottom: 2px solid var(--color-border-strong); }
+.chem7-bun  { border-bottom: 2px solid var(--color-border-strong); }
+.chem7-k    { border-right: 2px solid var(--color-border-strong); }
+.chem7-hco3 { border-right: 2px solid var(--color-border-strong); }
+.chem7-cr   { }
+.chem7-glu  {
+  grid-row: span 2;
+  align-self: center;
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: 10px;
+}
+
+/* CBC SVG layout placement */
+.cbc-container {
+  position: relative;
+  width: 140px;
+  height: 80px;
+  margin: 0 auto;
+}
+
+.cbc-label {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.cbc-input-wrapper {
+  position: absolute;
+  width: 40px;
+}
+
+/* ── Print Styles ──────────────────────────────────────────────────────── */
 @media print {
   body {
-    margin: 0.3in;
-    background: white;
-    font-size: 10pt;
+    margin: 0.2in !important;
+    background: white !important;
+    font-size: 8pt !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
   }
   .patient-card {
-    border: 0.5pt solid #999 !important;
+    border: 0.5pt solid #888 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 10pt !important;
-    margin-bottom: 6pt !important;
+    padding: 6pt !important;
+    margin-bottom: 4pt !important;
     background: white !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   .section-accent {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
+
+  /* Text inputs as underlines on paper */
+  input[type="text"], input[type="date"], input[type="password"] {
+    border: none !important;
+    border-bottom: 0.5pt dashed #555 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding-bottom: 1px !important;
+  }
+
+  /* Textareas as clean lined notes */
+  textarea {
+    border: none !important;
+    border-bottom: 0.5pt dashed #555 !important;
+    background: transparent !important;
+    height: 48px !important;
+    line-height: 16px !important;
+    background-image: linear-gradient(to bottom, transparent 95%, #777 95%) !important;
+    background-size: 100% 16px !important;
+  }
+
+  /* Physical checkboxes [ ] for pen markings */
+  input[type="checkbox"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 10px !important;
+    height: 10px !important;
+    border: 0.75pt solid #000 !important;
+    border-radius: 1px !important;
+    display: inline-block !important;
+    position: relative !important;
+    background: transparent !important;
+  }
+
+  /* Checkbox values blank/ordered/done as text indicators in print */
+  .print-check-indicator {
+    font-size: 8pt !important;
+    font-family: var(--font-mono) !important;
+    font-weight: bold !important;
+  }
+}
+
+/* Print densities */
+.print-1 .patient-card {
+  page-break-after: always;
+  break-after: page;
+}
+.print-2 .patient-card:nth-child(2n) {
+  page-break-after: always;
+  break-after: page;
+}
+.print-4 .patient-card:nth-child(4n) {
+  page-break-after: always;
+  break-after: page;
+}
+.print-4 .patient-card {
+  font-size: 8pt !important;
+  padding: 6px !important;
+}
+.print-4 textarea {
+  height: 32px !important;
 }
