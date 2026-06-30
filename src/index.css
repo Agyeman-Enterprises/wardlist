@@ -1,2 +1,67 @@
+/* ── WardList Design Tokens ───────────────────────────────────────────── */
+:root {
+  /* Page & surfaces */
+  --color-page:            #F5F3EF;
+  --color-card:            #FEFDFB;
+  --color-surface:         #FAF8F5;
+
+  /* Borders */
+  --color-border:          #E7E3DC;
+  --color-border-strong:   #D4CFC6;
+
+  /* Text */
+  --color-text:            #1E1B18;
+  --color-text-secondary:  #6B6560;
+  --color-text-muted:      #9D9790;
+
+  /* Accents */
+  --color-primary:         #0D554A;
+  --color-primary-hover:   #0A3F37;
+  --color-info:            #5B4F8B;
+  --color-info-hover:      #443A6B;
+  --color-orders:          #2D6A4F;
+  --color-orders-hover:    #1E4D38;
+  --color-danger:          #B91C1C;
+  --color-danger-hover:    #991B1B;
+  --color-success:         #166534;
+  --color-warning:         #92400E;
+
+  /* Radius */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
+
+  /* Type */
+  --font-sans:  'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f8fafc; -webkit-font-smoothing: antialiased; }
+body {
+  background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+  font-family: var(--font-sans);
+}
+
+/* ── Print ────────────────────────────────────────────────────────────── */
+@media print {
+  body {
+    margin: 0.3in;
+    background: white;
+    font-size: 10pt;
+  }
+  .patient-card {
+    border: 0.5pt solid #999 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 10pt !important;
+    margin-bottom: 6pt !important;
+    background: white !important;
+  }
+  .section-accent {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
