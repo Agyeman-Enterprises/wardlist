@@ -1925,7 +1925,8 @@ function StandaloneLogin({ onLogin }) {
           };
           localStorage.setItem("wl_user_auth", JSON.stringify(authData));
         }
-        onLogin({ profile: { preferred_username: email.split("@")[0] || "doctor" } });
+        const username = (email && typeof email === "string") ? (email.split("@")[0] || "doctor") : "doctor";
+        onLogin({ profile: { preferred_username: username } });
       } else {
         setErr("Invalid verification code. Please check your authenticator app.");
       }
