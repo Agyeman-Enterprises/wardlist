@@ -57,23 +57,61 @@ function toBase64(file) {
   });
 }
 
+// ─── AUTH UTILITIES ───────────────────────────────────────────────────────────
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function base32decode(b32) {
+  const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0, val = 0;
+  const bytes = [];
+  for (const c of b32.toUpperCase().replace(/=+$/, "")) {
+    const idx = CHARS.indexOf(c);
+    if (idx < 0) continue;
+    val = (val << 5) | idx;
+    bits += 5;
+    if (bits >= 8) { bytes.push((val >>> (bits - 8)) & 255); bits -= 8; }
+  }
+  return new Uint8Array(bytes);
+}
+
+async function verifyTOTP(secret, code, win = 1) {
+  if (!secret || code.length !== 6) return false;
+  const key = await crypto.subtle.importKey(
+    "raw", base32decode(secret), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]
+  );
+  const step = Math.floor(Date.now() / 1000 / 30);
+  for (let i = -win; i <= win; i++) {
+    const counter = step + i;
+    const buf = new ArrayBuffer(8);
+    new DataView(buf).setUint32(4, counter, false);
+    const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, buf));
+    const offset = mac[19] & 0xf;
+    const otp = (((mac[offset] & 0x7f) << 24) | (mac[offset + 1] << 16) | (mac[offset + 2] << 8) | mac[offset + 3]) % 1_000_000;
+    if (otp.toString().padStart(6, "0") === code) return true;
+  }
+  return false;
+}
+
 // ─── CHECKBOX STATES: 0=blank, 1=Ordered, 2=Done ─────────────────────────────
 const CHECK_STATES = ["—", "Ordered", "Done"];
 const CHECK_COLORS = [
-  "bg-slate-100 text-slate-400 border-slate-200",
-  "bg-amber-100 text-amber-700 border-amber-300",
-  "bg-emerald-100 text-emerald-700 border-emerald-300",
+  "bg-stone-100 text-stone-400 border-stone-200",
+  "bg-amber-50  text-amber-700 border-amber-200",
+  "bg-green-50  text-green-700 border-green-200",
 ];
 
 function CheckItem({ label, value, onChange }) {
   const state = value || 0;
   const next = () => onChange((state + 1) % 3);
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
-      <span className="text-xs text-slate-700 flex-1">{label}</span>
+    <div className="flex items-center justify-between py-1.5 border-b border-stone-50 last:border-0">
+      <span className="text-xs text-stone-700 flex-1">{label}</span>
       <button
         onClick={next}
-        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all min-w-[58px] text-center ${CHECK_COLORS[state]}`}
+        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-md border transition-all duration-150 min-w-[60px] text-center ${CHECK_COLORS[state]}`}
       >
         {CHECK_STATES[state]}
       </button>
@@ -296,71 +334,71 @@ function DictationModal({ onClose, onFilled, existingPatient }) {
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+    <div className="fixed inset-0 z-50 bg-stone-900/50 flex items-center justify-center p-4">
+      <div className="bg-[#FEFDFB] rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500">Dictation Mode</p>
-            <h2 className="text-base font-bold text-slate-800">{existingPatient.name || "New Patient"}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#5B4F8B]">Dictation Mode</p>
+            <h2 className="text-base font-bold text-stone-800">{existingPatient.name || "New Patient"}</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-2xl leading-none">&times;</button>
         </div>
 
         {(phase === "idle" || phase === "listening") && (
-          <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-100">
-            <p className="text-sm font-semibold text-slate-700 mb-1">Tell me everything about this patient.</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
+          <div className="bg-stone-50 rounded-lg p-4 mb-5 border border-stone-100">
+            <p className="text-sm font-semibold text-stone-700 mb-1">Tell me everything about this patient.</p>
+            <p className="text-xs text-stone-500 leading-relaxed">
               Diagnosis, diet, fluids, meds, labs, prophylaxis ordered, consults placed, discharge plan, DME, social work — anything. Speak naturally.
             </p>
           </div>
         )}
 
         {phase === "idle" && (
-          <button onClick={startListening} className="w-full bg-violet-600 text-white py-4 rounded-xl font-bold text-base hover:bg-violet-700 transition-colors flex items-center justify-center gap-3">
+          <button onClick={startListening} className="w-full bg-[#5B4F8B] text-white py-4 rounded-md font-bold text-base hover:bg-[#443A6B] transition-colors flex items-center justify-center gap-3">
             <span className="text-2xl">🎙</span> Start Dictating
           </button>
         )}
 
         {phase === "listening" && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-              <span className="text-red-500 animate-pulse text-xl">●</span>
+            <div className="flex items-center gap-3 bg-stone-100 border border-stone-200 rounded-lg px-4 py-3">
+              <span className="text-stone-700 animate-pulse text-xl">●</span>
               <div>
-                <p className="text-sm font-bold text-red-700">Listening…</p>
-                <p className="text-xs text-red-400">Auto-stops after 3s silence</p>
+                <p className="text-sm font-bold text-stone-700">Listening…</p>
+                <p className="text-xs text-stone-500">Auto-stops after 3s silence</p>
               </div>
             </div>
             {transcript && (
-              <div className="bg-slate-50 rounded-xl p-3 max-h-36 overflow-y-auto">
-                <p className="text-xs text-slate-600 leading-relaxed">{transcript}</p>
+              <div className="bg-stone-50 rounded-lg p-3 max-h-36 overflow-y-auto">
+                <p className="text-xs text-stone-600 leading-relaxed">{transcript}</p>
               </div>
             )}
-            <button onClick={handleStopBtn} className="w-full border-2 border-slate-300 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-50">
+            <button onClick={handleStopBtn} className="w-full border-2 border-stone-300 text-stone-700 py-3 rounded-md font-bold hover:bg-stone-50">
               ■ Done Talking
             </button>
           </div>
         )}
 
         {phase === "processing" && (
-          <div className="bg-violet-50 rounded-xl p-6 text-center space-y-2">
-            <p className="text-2xl animate-spin inline-block">⚙️</p>
-            <p className="text-sm font-bold text-violet-700">Mapping to fields…</p>
-            <p className="text-xs text-violet-400">Converting shorthand, filing checkboxes</p>
+          <div className="bg-stone-50 rounded-lg p-6 text-center space-y-2">
+            <div className="inline-block w-8 h-8 border-2 border-stone-200 border-t-[#5B4F8B] rounded-full animate-spin"></div>
+            <p className="text-sm font-bold text-stone-700">Mapping to fields…</p>
+            <p className="text-xs text-stone-500">Converting shorthand, filing checkboxes</p>
           </div>
         )}
 
         {phase === "done" && (
           <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">
+            <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-center">
               <p className="text-3xl mb-1">✓</p>
-              <p className="text-sm font-bold text-emerald-700">Fields & checkboxes populated</p>
-              <p className="text-xs text-emerald-500 mt-1">Review the card before saving</p>
+              <p className="text-sm font-bold text-green-700">Fields & checkboxes populated</p>
+              <p className="text-xs text-green-600 mt-1">Review the card before saving</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setPhase("idle"); setTranscript(""); }} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm hover:bg-slate-50">
+              <button onClick={() => { setPhase("idle"); setTranscript(""); }} className="flex-1 border border-stone-200 text-stone-600 py-2.5 rounded-md font-semibold text-sm hover:bg-stone-50">
                 Dictate More
               </button>
-              <button onClick={onClose} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700">
+              <button onClick={onClose} className="flex-1 bg-[#0D554A] text-white py-2.5 rounded-md font-bold text-sm hover:bg-[#0A3F37]">
                 Done
               </button>
             </div>
@@ -369,11 +407,11 @@ function DictationModal({ onClose, onFilled, existingPatient }) {
 
         {phase === "error" && (
           <div className="space-y-4">
-            <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+            <div className="bg-red-50 border border-red-100 rounded-lg p-4">
               <p className="text-sm font-bold text-red-700 mb-1">Something went wrong</p>
               <p className="text-xs text-red-500">{errorMsg}</p>
             </div>
-            <button onClick={() => { setPhase("idle"); setErrorMsg(""); }} className="w-full border border-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm">
+            <button onClick={() => { setPhase("idle"); setErrorMsg(""); }} className="w-full border border-stone-200 text-stone-600 py-2.5 rounded-md font-semibold text-sm">
               Try Again
             </button>
           </div>
@@ -443,34 +481,34 @@ Rules:
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+    <div className="fixed inset-0 z-50 bg-stone-900/50 flex items-center justify-center p-4">
+      <div className="bg-[#FEFDFB] rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-slate-800">Scan Census Sheet</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+          <h2 className="text-base font-bold text-stone-800">Scan Census Sheet</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-xl">&times;</button>
         </div>
-        <p className="text-xs text-slate-500 mb-4">Photo your ADT census — printed or handwritten. All patients extracted at once.</p>
+        <p className="text-xs text-stone-500 mb-4">Photo your ADT census — printed or handwritten. All patients extracted at once.</p>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
         {!preview ? (
-          <div onClick={() => fileRef.current.click()} className="border-2 border-dashed border-slate-200 rounded-xl h-40 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+          <div onClick={() => fileRef.current.click()} className="border-2 border-dashed border-stone-200 rounded-lg h-40 flex flex-col items-center justify-center cursor-pointer hover:border-[#0D554A] hover:bg-stone-50 transition-colors">
             <span className="text-3xl mb-2">📷</span>
-            <p className="text-sm font-semibold text-slate-600">Tap to take photo or upload</p>
-            <p className="text-xs text-slate-400 mt-1">JPG, PNG, HEIC</p>
+            <p className="text-sm font-semibold text-stone-600">Tap to take photo or upload</p>
+            <p className="text-xs text-stone-400 mt-1">JPG, PNG, HEIC</p>
           </div>
         ) : (
           <div className="relative">
-            <img src={preview} alt="Census" className="w-full rounded-xl object-contain max-h-64" />
-            <button onClick={() => { setPreview(null); setB64(null); setError(""); }} className="absolute top-2 right-2 bg-white rounded-full px-2 py-0.5 text-xs text-slate-600 shadow">Retake</button>
+            <img src={preview} alt="Census" className="w-full rounded-lg object-contain max-h-64" />
+            <button onClick={() => { setPreview(null); setB64(null); setError(""); }} className="absolute top-2 right-2 bg-white rounded-full px-2 py-0.5 text-xs text-stone-600 shadow">Retake</button>
           </div>
         )}
         {error && <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 text-sm border border-slate-200 text-slate-600 py-2 rounded-lg hover:bg-slate-50 font-semibold">Cancel</button>
-          <button onClick={runScan} disabled={!b64 || scanning} className="flex-1 text-sm bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-40">
+          <button onClick={onClose} className="flex-1 text-sm border border-stone-200 text-stone-600 py-2 rounded-md hover:bg-stone-50 font-semibold">Cancel</button>
+          <button onClick={runScan} disabled={!b64 || scanning} className="flex-1 text-sm bg-[#0D554A] text-white py-2 rounded-md font-semibold hover:bg-[#0A3F37] disabled:opacity-40">
             {scanning ? "Reading…" : "Extract Patients"}
           </button>
         </div>
-        {scanning && <p className="text-center text-xs text-slate-400 mt-3 animate-pulse">Reading census…</p>}
+        {scanning && <p className="text-center text-xs text-stone-400 mt-3 animate-pulse">Reading census…</p>}
       </div>
     </div>
   );
@@ -572,69 +610,70 @@ Return ONLY a raw JSON object (not array), no markdown, no backticks, no explana
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+    <div className="fixed inset-0 z-50 bg-stone-900/50 flex items-center justify-center p-4">
+      <div className="bg-[#FEFDFB] rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-teal-600">CareVue Orders Scan</p>
-            <h2 className="text-base font-bold text-slate-800">{existingPatient.name || "Patient"}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#2D6A4F]">CareVue Orders Scan</p>
+            <h2 className="text-base font-bold text-stone-800">{existingPatient.name || "Patient"}</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-xl">&times;</button>
         </div>
 
-        <div className="bg-teal-50 rounded-xl p-3 mb-4 border border-teal-100">
-          <p className="text-xs text-teal-700 font-semibold mb-0.5">Screenshot the Active Orders tab in CareVue</p>
-          <p className="text-xs text-teal-500">Meds, IVF, diet, labs, nursing orders — all extracted and merged into this patient's card.</p>
+        <div className="bg-green-50 rounded-lg p-3 mb-4 border border-green-100">
+          <p className="text-xs text-green-800 font-semibold mb-0.5">Screenshot the Active Orders tab in CareVue</p>
+          <p className="text-xs text-green-700">Meds, IVF, diet, labs, nursing orders — all extracted and merged into this patient's card.</p>
         </div>
 
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
         {!preview ? (
-          <div onClick={() => fileRef.current.click()} className="border-2 border-dashed border-teal-200 rounded-xl h-40 flex flex-col items-center justify-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors">
+          <div onClick={() => fileRef.current.click()} className="border-2 border-dashed border-stone-200 rounded-lg h-40 flex flex-col items-center justify-center cursor-pointer hover:border-[#2D6A4F] hover:bg-stone-50 transition-colors">
             <span className="text-3xl mb-2">🖥️</span>
-            <p className="text-sm font-semibold text-slate-600">Screenshot or photo of CareVue orders</p>
-            <p className="text-xs text-slate-400 mt-1">JPG, PNG, HEIC</p>
+            <p className="text-sm font-semibold text-stone-600">Screenshot or photo of CareVue orders</p>
+            <p className="text-xs text-stone-400 mt-1">JPG, PNG, HEIC</p>
           </div>
         ) : (
           <div className="relative">
-            <img src={preview} alt="Orders preview" className="w-full rounded-xl object-contain max-h-64" />
-            <button onClick={() => { setPreview(null); setB64(null); setError(""); }} className="absolute top-2 right-2 bg-white rounded-full px-2 py-0.5 text-xs text-slate-600 shadow">Retake</button>
+            <img src={preview} alt="Orders preview" className="w-full rounded-lg object-contain max-h-64" />
+            <button onClick={() => { setPreview(null); setB64(null); setError(""); }} className="absolute top-2 right-2 bg-white rounded-full px-2 py-0.5 text-xs text-stone-600 shadow">Retake</button>
           </div>
         )}
 
         {error && <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 text-sm border border-slate-200 text-slate-600 py-2 rounded-lg hover:bg-slate-50 font-semibold">Cancel</button>
-          <button onClick={runScan} disabled={!b64 || scanning} className="flex-1 text-sm bg-teal-600 text-white py-2 rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-40">
+          <button onClick={onClose} className="flex-1 text-sm border border-stone-200 text-stone-600 py-2 rounded-md hover:bg-stone-50 font-semibold">Cancel</button>
+          <button onClick={runScan} disabled={!b64 || scanning} className="flex-1 text-sm bg-[#2D6A4F] text-white py-2 rounded-md font-semibold hover:bg-[#1E4D38] disabled:opacity-40">
             {scanning ? "Reading orders…" : "Import Orders"}
           </button>
         </div>
-        {scanning && <p className="text-center text-xs text-slate-400 mt-3 animate-pulse">Reading CareVue orders screen…</p>}
+        {scanning && <p className="text-center text-xs text-stone-400 mt-3 animate-pulse">Reading CareVue orders screen…</p>}
       </div>
     </div>
   );
 }
 
 // ─── FIELD ────────────────────────────────────────────────────────────────────
-function Field({ label, value, onChange, wide, tall, placeholder, dim }) {
-  const base = "bg-transparent border-b border-slate-300 focus:border-blue-600 outline-none text-slate-800 text-sm w-full transition-colors";
+function Field({ label, value, onChange, wide, tall, placeholder, dim, mono }) {
+  const base = "bg-transparent border-b border-stone-300 focus:border-[#0D554A] outline-none text-stone-800 text-sm w-full transition-colors placeholder:text-stone-400";
   return (
     <div className={`flex flex-col gap-0.5 ${wide ? "col-span-2" : ""} ${dim ? "opacity-50" : ""}`}>
-      <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</label>
+      <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">{label}</label>
       {tall
-        ? <textarea className={`${base} resize-none h-16 leading-snug pt-1`} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""} />
-        : <input className={`${base} h-7`} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""} />
+        ? <textarea className={`${base} resize-none h-16 leading-snug pt-1 ${mono ? "font-mono" : ""}`} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""} />
+        : <input className={`${base} h-8 ${mono ? "font-mono" : ""}`} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""} />
       }
     </div>
   );
 }
 
 function SectionHead({ children, color }) {
-  const c = color || "text-blue-700 bg-blue-100";
+  const bar = color || "bg-blue-600";
   return (
-    <div className="col-span-2 mt-4 mb-2 flex items-center gap-2">
-      <span className={`text-[10px] font-bold uppercase tracking-[0.15em] px-2 py-0.5 rounded ${c}`}>{children}</span>
-      <div className="flex-1 h-px bg-slate-100" />
+    <div className="col-span-2 mt-3 mb-1.5 flex items-center gap-2 section-accent">
+      <div className={`w-0.5 h-4 ${bar} rounded-full`}></div>
+      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-stone-500">{children}</span>
+      <div className="flex-1 h-px bg-stone-200" />
     </div>
   );
 }
@@ -643,7 +682,7 @@ function CheckSection({ title, color, items, patient, onChange, notesKey, notesL
   return (
     <div className="col-span-2">
       <SectionHead color={color}>{title}</SectionHead>
-      <div className="bg-slate-50 rounded-xl px-3 py-1 mb-2">
+      <div className="bg-stone-50 rounded-lg px-3 py-1 mb-2">
         {items.map(([key, label]) => (
           <CheckItem key={key} label={label} value={patient[key]} onChange={v => onChange(key, v)} />
         ))}
@@ -708,17 +747,17 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
   ];
 
   return (
-    <div className="patient-card bg-white border border-slate-200 rounded-xl shadow-sm p-5 mb-6 print:shadow-none print:border print:rounded-none print:mb-0 print:break-inside-avoid">
+    <div className="patient-card bg-[#FEFDFB] border border-[#E7E3DC] rounded-lg shadow-none p-4 mb-6 print:shadow-none print:border print:rounded-none print:mb-0 print:break-inside-avoid">
       <div className="flex items-center justify-between mb-3 print:hidden">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Patient {index + 1}</span>
+        <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">Patient {index + 1}</span>
         <div className="flex items-center gap-2">
-          <button onClick={onOrdersScan} className="flex items-center gap-1.5 text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-teal-700 transition-colors">
+          <button onClick={onOrdersScan} className="flex items-center gap-1.5 text-xs bg-[#2D6A4F] text-white px-3 py-1.5 rounded-md font-semibold hover:bg-[#1E4D38] transition-colors">
             🖥️ Scan Orders
           </button>
-          <button onClick={onDictate} className="flex items-center gap-1.5 text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-violet-700 transition-colors">
+          <button onClick={onDictate} className="flex items-center gap-1.5 text-xs bg-[#5B4F8B] text-white px-3 py-1.5 rounded-md font-semibold hover:bg-[#443A6B] transition-colors">
             🎙 Dictate
           </button>
-          <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-600 transition-colors">Remove</button>
+          <button onClick={onDelete} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
         </div>
       </div>
 
@@ -727,21 +766,21 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
         <SectionHead>Patient Info</SectionHead>
         <Field label="Room #" value={patient.room} onChange={f("room")} placeholder="455-A" />
         <Field label="Name" value={patient.name} onChange={f("name")} placeholder="Last, First Middle" />
-        <Field label="MRN" value={patient.mrn} onChange={f("mrn")} placeholder="2102205" />
-        <Field label="DOB" value={patient.dob} onChange={f("dob")} placeholder="MM/DD/YYYY" />
+        <Field label="MRN" value={patient.mrn} onChange={f("mrn")} placeholder="2102205" mono />
+        <Field label="DOB" value={patient.dob} onChange={f("dob")} placeholder="MM/DD/YYYY" mono />
         <Field label="Age (auto)" value={patient.age} onChange={f("age")} placeholder="16yo" dim={!!patient.dob} />
         <Field label="Attending / MD" value={patient.md} onChange={f("md")} placeholder="Agyeman, Akua" />
-        <Field label="Admit Date" value={patient.admit_date} onChange={f("admit_date")} placeholder="06/27/2026 18:31" />
+        <Field label="Admit Date" value={patient.admit_date} onChange={f("admit_date")} placeholder="06/27/2026 18:31" mono />
         <Field label="Consults" value={patient.consults} onChange={f("consults")} placeholder="Shay, ALG" />
         <Field label="HT" value={patient.ht} onChange={f("ht")} placeholder='63.78"' />
         <Field label="WT" value={patient.wt} onChange={f("wt")} placeholder="56.1 kg" />
         <Field label="Dx" value={patient.dx} onChange={f("dx")} wide placeholder="pneumothorax R/F/C/ RVP (−)" />
         <Field label="Parent / Guardian" value={patient.parent_guardian} onChange={f("parent_guardian")} wide />
 
-        <SectionHead>History</SectionHead>
+        <SectionHead color="bg-blue-600">History</SectionHead>
         <Field label="Hx" value={patient.hx} onChange={f("hx")} wide tall />
 
-        <SectionHead>Diet / Orders</SectionHead>
+        <SectionHead color="bg-sky-600">Diet / Orders</SectionHead>
         <Field label="Diet" value={patient.diet} onChange={f("diet")} placeholder="DFA, NPO p MN" />
         <Field label="Activity" value={patient.activity} onChange={f("activity")} placeholder="CTABL" />
         <Field label="IVF" value={patient.ivf} onChange={f("ivf")} placeholder="D5NS @100ml/hr" />
@@ -753,10 +792,10 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
         <Field label="Code Status" value={patient.code_status} onChange={f("code_status")} />
         <Field label="Precautions" value={patient.precautions} onChange={f("precautions")} />
 
-        <SectionHead>Notes</SectionHead>
+        <SectionHead color="bg-blue-600">Notes</SectionHead>
         <Field label="Notes" value={patient.notes} onChange={f("notes")} wide tall />
 
-        <SectionHead>Assessment & Plan</SectionHead>
+        <SectionHead color="bg-sky-600">Assessment & Plan</SectionHead>
         <Field label="Labs" value={patient.labs} onChange={f("labs")} wide tall />
         <Field label="Echo" value={patient.echo} onChange={f("echo")} />
         <Field label="CXR" value={patient.cxr} onChange={f("cxr")} />
@@ -765,7 +804,7 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
         <Field label="New Meds" value={patient.new_meds} onChange={f("new_meds")} wide />
         <Field label="New Concerns" value={patient.new_concerns} onChange={f("new_concerns")} wide />
 
-        <SectionHead>Pending</SectionHead>
+        <SectionHead color="bg-amber-600">Pending</SectionHead>
         <Field label="Pending Labs" value={patient.pending_labs} onChange={f("pending_labs")} wide />
         <Field label="Pending Procedures" value={patient.pending_procedures} onChange={f("pending_procedures")} wide />
         <Field label="Pending Consults" value={patient.pending_consults} onChange={f("pending_consults")} wide />
@@ -774,7 +813,7 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
 
         <CheckSection
           title="Medicine Prophylaxis"
-          color="text-orange-700 bg-orange-100"
+          color="bg-orange-600"
           items={PROPHYLAXIS}
           patient={patient}
           onChange={f}
@@ -784,7 +823,7 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
 
         <CheckSection
           title="Service Consults"
-          color="text-blue-700 bg-blue-100"
+          color="bg-indigo-600"
           items={CONSULTS}
           patient={patient}
           onChange={f}
@@ -792,16 +831,16 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
           notesLabel="Additional consults / notes (dictate or type)"
         />
 
-        <SectionHead color="text-emerald-700 bg-emerald-100">Discharge Planning</SectionHead>
+        <SectionHead color="bg-emerald-600">Discharge Planning</SectionHead>
         <Field label="Target Disposition" value={patient.dc_target_dispo} onChange={f("dc_target_dispo")} wide placeholder="Home / SNF / LTAC / Hospice / AMA…" />
-        <div className="col-span-2 bg-slate-50 rounded-xl px-3 py-1 mb-2">
+        <div className="col-span-2 bg-stone-50 rounded-lg px-3 py-1 mb-2">
           {DISCHARGE.map(([key, label]) => (
             <CheckItem key={key} label={label} value={patient[key]} onChange={v => f(key)(v)} />
           ))}
         </div>
         <Field label="Discharge notes (dictate or type)" value={patient.dc_notes} onChange={f("dc_notes")} wide tall placeholder="Barriers to discharge, family meeting needed, court ordered, APS…" />
 
-        <SectionHead>Nursing Checks</SectionHead>
+        <SectionHead color="bg-rose-600">Nursing Checks</SectionHead>
         <Field label="Pain Reassessment" value={patient.pain_reassessment} onChange={f("pain_reassessment")} />
         <Field label="Restraints" value={patient.restraints} onChange={f("restraints")} />
         <Field label="Suicide Level" value={patient.suicide_level} onChange={f("suicide_level")} />
@@ -809,6 +848,134 @@ function PatientCard({ patient, onChange, onDelete, onDictate, onOrdersScan, ind
         <Field label="PEWS" value={patient.pews} onChange={f("pews")} />
         <Field label="HRFE" value={patient.hrfe} onChange={f("hrfe")} />
         <Field label="Home Meds Pending" value={patient.home_meds} onChange={f("home_meds")} wide />
+      </div>
+    </div>
+  );
+}
+
+// ─── EYE ICON ─────────────────────────────────────────────────────────────────
+function EyeIcon({ open }) {
+  return open ? (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+// ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [mode, setMode] = useState("password");
+  const [pwd, setPwd] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try {
+      if (mode === "password") {
+        const hash = await sha256hex(pwd);
+        if (hash === import.meta.env.VITE_APP_PASSWORD_HASH) { onLogin(remember); return; }
+        setError("Incorrect password.");
+      } else {
+        const ok = await verifyTOTP(import.meta.env.VITE_APP_OTP_SECRET || "", otp);
+        if (ok) { onLogin(remember); return; }
+        setError("Invalid or expired code.");
+      }
+    } catch { setError("Authentication error — please retry."); }
+    finally { setBusy(false); }
+  }
+
+  const ready = mode === "password" ? pwd.length > 0 : otp.length === 6;
+
+  return (
+    <div className="min-h-screen bg-[#F5F3EF] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0D554A] mb-1">GMH Hospitalist</p>
+        <h1 className="text-2xl font-bold text-stone-900 mb-6">WardList</h1>
+
+        <div className="flex rounded-lg border border-stone-200 mb-5 overflow-hidden text-xs font-semibold">
+          <button type="button" onClick={() => { setMode("password"); setError(""); }}
+            data-testid="mode-password"
+            className={`flex-1 py-2 transition-colors ${mode === "password" ? "bg-[#0D554A] text-white" : "text-stone-500 hover:bg-stone-50"}`}>
+            Password
+          </button>
+          <button type="button" onClick={() => { setMode("otp"); setError(""); }}
+            data-testid="mode-otp"
+            className={`flex-1 py-2 transition-colors ${mode === "otp" ? "bg-[#0D554A] text-white" : "text-stone-500 hover:bg-stone-50"}`}>
+            OTP Code
+          </button>
+        </div>
+
+        <form onSubmit={submit}>
+          {mode === "password" ? (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-stone-600 mb-1">Password</label>
+              <div className="relative">
+                <input
+                  type={showPwd ? "text" : "password"}
+                  value={pwd}
+                  onChange={e => setPwd(e.target.value)}
+                  placeholder="Enter password"
+                  autoFocus
+                  data-testid="login-password"
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#0D554A] focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  tabIndex={-1}
+                  aria-label={showPwd ? "Hide password" : "Show password"}
+                  data-testid="toggle-password-visibility"
+                >
+                  <EyeIcon open={showPwd} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-stone-600 mb-1">6-digit OTP Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otp}
+                onChange={e => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                autoFocus
+                data-testid="login-otp"
+                className="w-full border border-stone-300 rounded-lg px-3 py-2.5 text-center tracking-widest text-lg font-mono focus:outline-none focus:ring-2 focus:ring-[#0D554A] focus:border-transparent"
+              />
+              <p className="text-[10px] text-stone-400 mt-1">Open your authenticator app for the code</p>
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+              data-testid="remember-me" className="rounded" />
+            <span className="text-xs text-stone-600">Keep me logged in</span>
+          </label>
+
+          {error && <p className="text-xs text-red-600 mb-4" data-testid="login-error">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={busy || !ready}
+            data-testid="login-submit"
+            className="w-full bg-[#0D554A] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#0A3F37] disabled:opacity-50 transition-colors"
+          >
+            {busy ? "Checking…" : "Sign In"}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -829,6 +996,21 @@ export default function WardList() {
   const [dictatingIdx, setDictatingIdx] = useState(null);
   const [ordersScanIdx, setOrdersScanIdx] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [authed, setAuthed] = useState(
+    () => !!(localStorage.getItem("wl_auth") || sessionStorage.getItem("wl_auth"))
+  );
+
+  function handleLogin(remember) {
+    if (remember) localStorage.setItem("wl_auth", "1");
+    else sessionStorage.setItem("wl_auth", "1");
+    setAuthed(true);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("wl_auth");
+    sessionStorage.removeItem("wl_auth");
+    setAuthed(false);
+  }
 
   useEffect(() => { loadSaved(); }, []);
 
@@ -881,15 +1063,19 @@ export default function WardList() {
 
   function loadIntoForm(row) { setPatients([row]); setTab("rounds"); }
 
+  if (!authed) return <LoginScreen onLogin={handleLogin} />;
+
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+        .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
         @media print {
-          body { margin: 0; background: white; }
+          body { margin: 0.3in; background: white; }
           .no-print { display: none !important; }
-          .patient-card { page-break-inside: avoid; break-inside: avoid; border: 1px solid #ccc !important; border-radius: 0 !important; box-shadow: none !important; margin-bottom: 0 !important; }
+          .patient-card { page-break-inside: avoid; break-inside: avoid; border: 0.5pt solid #999 !important; border-radius: 0 !important; box-shadow: none !important; margin-bottom: 6pt !important; background: white !important; }
+          .section-accent { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         .print-1 .patient-card { page-break-after: always; break-after: page; }
         .print-2 .patient-card:nth-child(2n) { page-break-after: always; break-after: page; }
@@ -914,39 +1100,45 @@ export default function WardList() {
         />
       )}
 
-      <div className="min-h-screen bg-slate-50">
-        <header className="no-print sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="min-h-screen bg-[#F5F3EF]">
+        <header className="no-print sticky top-0 z-10 bg-[#FEFDFB] border-b border-[#E7E3DC]">
+          <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">GMH Hospitalist</p>
-              <h1 className="text-lg font-bold text-slate-800 leading-tight">WardList</h1>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0D554A]">GMH Hospitalist</p>
+              <h1 className="text-lg font-bold text-stone-800 leading-tight">WardList</h1>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setTab("rounds")} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${tab === "rounds" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100"}`}>Today's List</button>
-              <button onClick={() => { setTab("saved"); loadSaved(); }} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${tab === "saved" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100"}`}>Saved</button>
+              <button onClick={() => setTab("rounds")} data-testid="tab-rounds" className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-colors ${tab === "rounds" ? "bg-[#0D554A] text-white" : "text-stone-500 hover:bg-stone-100"}`}>Today's List</button>
+              <button onClick={() => { setTab("saved"); loadSaved(); }} data-testid="tab-saved" className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-colors ${tab === "saved" ? "bg-[#0D554A] text-white" : "text-stone-500 hover:bg-stone-100"}`}>Saved</button>
+              <button onClick={handleLogout} data-testid="logout-btn" className="text-xs px-3 py-1.5 rounded-md font-semibold text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors" title="Sign out">Sign out</button>
             </div>
+          </div>
+          <div className="max-w-3xl mx-auto px-4 pb-1.5 flex items-center gap-1.5 text-[11px]">
+            <span className="font-semibold text-[#0D554A]">WardList</span>
+            <span className="text-stone-300">›</span>
+            <span className="font-medium text-stone-500">{tab === "rounds" ? "Today's List" : "Saved Records"}</span>
           </div>
         </header>
 
         {tab === "rounds" && (
           <main className={`max-w-3xl mx-auto px-4 py-6 print-${printPer}`}>
             <div className="no-print flex flex-wrap items-center gap-3 mb-4">
-              <button onClick={() => setShowScan(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-1.5">📷 Scan Census</button>
-              <button onClick={addPatient} className="text-sm border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-50">+ Add Patient</button>
-              <button onClick={saveAll} disabled={saving} className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50">
+              <button onClick={() => setShowScan(true)} className="text-sm bg-[#0D554A] text-white px-4 py-2 rounded-md font-semibold hover:bg-[#0A3F37] flex items-center gap-1.5">📷 Scan Census</button>
+              <button onClick={addPatient} className="text-sm border border-stone-300 text-stone-700 px-4 py-2 rounded-md font-semibold hover:bg-stone-100">+ Add Patient</button>
+              <button onClick={saveAll} disabled={saving} className="text-sm bg-[#0D554A] text-white px-4 py-2 rounded-md font-semibold hover:bg-[#0A3F37] disabled:opacity-50">
                 {saving ? "Saving…" : "Save All"}
               </button>
               <div className="flex items-center gap-2 ml-auto">
-                <span className="text-xs text-slate-500 font-medium">Print:</span>
+                <span className="text-xs text-stone-500 font-medium">Print:</span>
                 {[1,2,4].map(n => (
-                  <button key={n} onClick={() => setPrintPer(n)} className={`text-xs px-2.5 py-1 rounded font-semibold border transition-colors ${printPer === n ? "bg-slate-700 text-white border-slate-700" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>{n}/pg</button>
+                  <button key={n} onClick={() => setPrintPer(n)} className={`text-xs px-2.5 py-1 rounded-md font-semibold border transition-colors ${printPer === n ? "bg-stone-700 text-white border-stone-700" : "border-stone-300 text-stone-600 hover:bg-stone-100"}`}>{n}/pg</button>
                 ))}
-                <button onClick={() => window.print()} className="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-slate-800">🖨 Print</button>
+                <button onClick={() => window.print()} className="text-xs bg-stone-700 text-white px-3 py-1.5 rounded-md font-semibold hover:bg-stone-800">🖨 Print</button>
               </div>
             </div>
 
-            {scanMsg && <div className="no-print text-sm px-4 py-2 rounded-lg mb-4 font-medium bg-blue-50 text-blue-700">{scanMsg}</div>}
-            {saveMsg && <div className={`no-print text-sm px-4 py-2 rounded-lg mb-4 font-medium ${saveMsg.includes("failed") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{saveMsg}</div>}
+            {scanMsg && <div className="no-print text-sm px-4 py-2 rounded-md mb-4 font-medium bg-sky-50 text-sky-800 border-l-4 border-sky-600">{scanMsg}</div>}
+            {saveMsg && <div className={`no-print text-sm px-4 py-2 rounded-md mb-4 font-medium border-l-4 ${saveMsg.includes("failed") ? "bg-red-50 text-red-800 border-red-600" : "bg-green-50 text-green-800 border-green-600"}`}>{saveMsg}</div>}
 
             {patients.map((pt, idx) => (
               <PatientCard key={pt.id} patient={pt} index={idx}
@@ -958,33 +1150,33 @@ export default function WardList() {
             ))}
 
             <div className="no-print text-center mt-4">
-              <button onClick={addPatient} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">+ Add another patient</button>
+              <button onClick={addPatient} className="text-sm text-[#0D554A] hover:text-[#0A3F37] font-semibold">+ Add another patient</button>
             </div>
           </main>
         )}
 
         {tab === "saved" && (
           <main className="max-w-3xl mx-auto px-4 py-6 no-print">
-            <h2 className="text-base font-bold text-slate-700 mb-4">Saved Patient Records</h2>
-            {loadError && <div className="text-sm px-4 py-3 bg-amber-50 text-amber-700 rounded-lg mb-4">{loadError}</div>}
-            {loading && <p className="text-sm text-slate-400">Loading…</p>}
-            {!loading && saved.length === 0 && !loadError && <p className="text-sm text-slate-400">No saved records yet.</p>}
+            <h2 className="text-base font-bold text-stone-700 mb-4">Saved Patient Records</h2>
+            {loadError && <div className="text-sm px-4 py-3 bg-amber-50 text-amber-800 border-l-4 border-amber-600 rounded-md mb-4">{loadError}</div>}
+            {loading && <p className="text-sm text-stone-400">Loading…</p>}
+            {!loading && saved.length === 0 && !loadError && <p className="text-sm text-stone-400">No saved records yet.</p>}
             {!loading && saved.map(row => (
-              <div key={row.id} className="bg-white border border-slate-200 rounded-xl p-4 mb-3 flex items-center justify-between shadow-sm">
+              <div key={row.id} className="bg-[#FEFDFB] border border-[#E7E3DC] rounded-lg p-4 mb-3 flex items-center justify-between shadow-none">
                 <div>
-                  <p className="font-semibold text-slate-800 text-sm">{row.name || "—"}</p>
-                  <p className="text-xs text-slate-400">MRN {row.mrn || "—"} · Room {row.room || "—"} · {row.dx || "—"}</p>
-                  <p className="text-[10px] text-slate-300 mt-0.5">Saved {new Date(row.updated_at).toLocaleString()}</p>
+                  <p className="font-semibold text-stone-800 text-sm">{row.name || "—"}</p>
+                  <p className="text-xs text-stone-500">MRN <span className="font-mono">{row.mrn || "—"}</span> · Room {row.room || "—"} · {row.dx || "—"}</p>
+                  <p className="text-[10px] text-stone-400 mt-0.5">Saved {new Date(row.updated_at).toLocaleString()}</p>
                 </div>
                 <div className="flex gap-2 items-center">
-                  <button onClick={() => loadIntoForm(row)} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700">Load</button>
+                  <button onClick={() => loadIntoForm(row)} className="text-xs bg-[#0D554A] text-white px-3 py-1.5 rounded-md font-semibold hover:bg-[#0A3F37]">Load</button>
                   {confirmDeleteId === row.id ? (
                     <>
-                      <button data-testid="confirm-delete" onClick={() => deleteRecord(row.id)} className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-red-700">Confirm</button>
-                      <button data-testid="cancel-delete" onClick={() => setConfirmDeleteId(null)} className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg font-semibold hover:bg-slate-200">Cancel</button>
+                      <button data-testid="confirm-delete" onClick={() => deleteRecord(row.id)} className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-md font-semibold hover:bg-red-700">Confirm</button>
+                      <button data-testid="cancel-delete" onClick={() => setConfirmDeleteId(null)} className="text-xs bg-stone-100 text-stone-600 px-3 py-1.5 rounded-md font-semibold hover:bg-stone-200">Cancel</button>
                     </>
                   ) : (
-                    <button data-testid="delete-record" onClick={() => setConfirmDeleteId(row.id)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-semibold hover:bg-red-100">Delete</button>
+                    <button data-testid="delete-record" onClick={() => setConfirmDeleteId(row.id)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-md font-semibold hover:bg-red-100">Delete</button>
                   )}
                 </div>
               </div>
