@@ -594,9 +594,10 @@ function SecurityGateway({ onUnlock }) {
       setMode("setup");
     }
     // Check if biometric authentication support is available
-    if (window.PublicKeyCredential) {
+    if (window.PublicKeyCredential && typeof window.PublicKeyCredential.isUserVerifyingPlatformCredentialAvailable === "function") {
       window.PublicKeyCredential.isUserVerifyingPlatformCredentialAvailable()
-        .then(avail => setHasBiometric(avail));
+        .then(avail => setHasBiometric(avail))
+        .catch(err => console.warn("Biometrics check failed:", err));
     }
   }, []);
 
@@ -644,7 +645,7 @@ function SecurityGateway({ onUnlock }) {
   async function handleBiometricUnlock() {
     try {
       // Direct clinical verification simulation (FaceID / TouchID bypass logic)
-      if (window.PublicKeyCredential) {
+      if (window.PublicKeyCredential && typeof window.PublicKeyCredential.isUserVerifyingPlatformCredentialAvailable === "function") {
         // Trigger simulated premium biometric overlay for feedback verification
         setError("Biometric scan active…");
         setTimeout(async () => {
