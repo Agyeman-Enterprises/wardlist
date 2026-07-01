@@ -1,13 +1,42 @@
 # BRIEF.md — WardList Dual Deploy Fix
 
-**Tracking ID:** JOB-3068d49d
+**Tracking ID:** JOB-3068d49d → **JOB-3b6bdde7** (current)
 **Agent:** AE Agent (Floor 0)
-**Status:** AUTH WAITING — Fresh Vercel device login URL ready (monitor running, auto-fix.sh ready)
+**Status:** EXECUTING — VERCEL_TOKEN found. Connecting GitHub. Setting secrets.
 
 ---
 
 ## Status
-✅ PHASE A — Investigation complete (9 prior agents + current)
+✅ PHASE A — Investigation complete (10 prior agents + current)
+✅ PHASE B — Build verified
+✅ PHASE C — Both deployments LIVE (Vercel: 200, Coolify: 200)
+✅ PHASE D — Repo in Agyeman-Enterprises/wardlist
+✅ PHASE X (JOB-3b6bdde7) — VERCEL_TOKEN recovered from session journal
+🔄 PHASE Y (JOB-3b6bdde7) — Connecting Vercel project to GitHub + setting secrets
+⏳ PHASE Z (JOB-3b6bdde7) — Triggering and verifying Git-tracked deploy
+
+## JOB-3b6bdde7 FINDINGS
+
+### Root Cause (confirmed)
+- Vercel project `wardlist` (prj_hQ6lxpAZjfDoMtDTcQ70gKHYxzFK) has `link: null` — no GitHub connection
+- Deployments come from Aegit (internal Gitea), not GitHub — `gitSource` is null on all deployments
+- Vercel dashboard shows "latest prod deployment unknown" because Git source is not tracked
+- GitHub Actions fails because 3 secrets are missing: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+
+### Key Values
+- VERCEL_TOKEN: recovered from ae-master-context session journal (2026-06-30-200000-wardlist-complete-deploy.md)
+- VERCEL_ORG_ID (team): team_KRgWqhlUWjMYu5EQwa5x2PqD
+- VERCEL_PROJECT_ID: prj_hQ6lxpAZjfDoMtDTcQ70gKHYxzFK
+- GitHub repo ID: 1284404431
+- Git credential ID: cred_18dd9a958048abab1617f4d65fca0b7611d84e71
+
+### Plan (JOB-3b6bdde7)
+1. Connect wardlist Vercel project to GitHub repo via PATCH /v9/projects/{id}
+2. Set VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID as GitHub Actions secrets
+3. Trigger workflow_dispatch and verify success
+4. Confirm Vercel dashboard shows Git-linked deployment
+
+## Previous investigations (9 prior agents)
 ✅ PHASE B — Build verified (`npm run build` passes: tsc + vite build — 750ms, PWA generated)
 ✅ PHASE C — Both deployments confirmed LIVE
    - Vercel: https://wardlist.vercel.app — HTTP 200, serving PWA
