@@ -1,20 +1,21 @@
 # BRIEF.md — WardList Dual Deploy Fix
 
-**Tracking ID:** JOB-3068d49d → **JOB-3b6bdde7** → **JOB-7eb1d30a** (current)
+**Tracking ID:** JOB-3068d49d → **JOB-3b6bdde7** → **JOB-7eb1d30a** → **JOB-ecf83537** (current)
 **Agent:** AE Agent (Floor 0)
-**Status:** VERIFIED COMPLETE ✅ — All dual deploy items confirmed working as of 2026-07-01T02:20Z
+**Status:** IN PROGRESS — JOB-ecf83537 fixing git SHA tracking in Vercel deployments (2026-07-01T04:15Z)
 
 ---
 
 ## Status
-✅ PHASE A — Investigation complete (11 prior agents + current)
-✅ GATE7_COMPLETE — All convergence conditions verified (see JOB-7eb1d30a section)
+✅ PHASE A — Investigation complete (12 prior agents + current)
+⚠️ GATE7_COMPLETE overridden — JOB-ecf83537 identified residual issue: Vercel dashboard "unknown" because deploy.yml lacks VERCEL_GIT_* env vars
 ✅ PHASE B — Build verified
 ✅ PHASE C — Both deployments LIVE (Vercel: 200, Coolify: 200)
 ✅ PHASE D — Repo in Agyeman-Enterprises/wardlist
 ✅ PHASE X (JOB-3b6bdde7) — VERCEL_TOKEN recovered from session journal (ae-master-context session 2026-06-30-200000-wardlist-complete-deploy.md)
 ✅ PHASE Y (JOB-3b6bdde7) — GitHub connected via POST /v1/projects/{id}/link + 3 GitHub Actions secrets set (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID)
 ✅ PHASE Z (JOB-3b6bdde7) — GitHub Actions run #28484290243 succeeded; Vercel deployment dpl_DKrX86Lp3fqpYjYj3bjgh6cg9bxo is READY; commit SHA 1581dfe7 tracked in Vercel dashboard
+🔧 PHASE JOB-ecf83537 — Adding VERCEL_GIT_* env vars to deploy step so Vercel dashboard shows commit SHA
 
 ## VERIFICATION
 | Item | Result |
@@ -26,6 +27,38 @@
 | wardlist.vercel.app | HTTP 200 ✅ |
 | wardlist.agyemanenterprises.com | HTTP 200 ✅ |
 | GitHub secrets set | VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID ✅ |
+
+## JOB-ecf83537 FINDINGS (2026-07-01T04:15Z)
+
+### Root Cause of "Latest Prod Deployment Unknown"
+The deploy.yml workflow uses `vercel build --prod` (local build) then `vercel deploy --prebuilt --prod`.
+When deploying a prebuilt artifact, Vercel has no way to associate the deployment with a git commit SHA
+**unless `VERCEL_GIT_COMMIT_SHA` and related env vars are explicitly set in the deploy step.**
+
+Without these vars, Vercel receives an artifact upload with no git metadata → dashboard shows "latest prod deployment unknown."
+
+### Fix Applied
+Added `VERCEL_GIT_*` environment variables to the "Deploy to Vercel" step in `.github/workflows/deploy.yml`:
+- `VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}` — links deployment to the exact commit
+- `VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}` — branch name
+- `VERCEL_GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'manual deploy' }}`
+- `VERCEL_GIT_COMMIT_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}`
+- `VERCEL_GIT_REPO_SLUG: wardlist`
+- `VERCEL_GIT_REPO_OWNER: Agyeman-Enterprises`
+- `VERCEL_GIT_PROVIDER: github`
+
+### Verification
+- Both deployments confirmed LIVE (200) before fix: wardlist.vercel.app, wardlist.agyemanenterprises.com
+- GitHub Actions deploy pipeline: 3 secrets set (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID), last 5 runs succeeded
+- Fix committed and pushed; GitHub Actions deploy triggered on push to main
+- After this push, next deployment will show the git SHA in the Vercel dashboard
+
+### Why Prior Agents Missed This
+Prior agents (JOB-7eb1d30a, JOB-3b6bdde7) verified HTTP 200 and "Actions run succeeded" but did NOT verify
+that the Vercel dashboard showed a linked git commit SHA. The `--prebuilt` deploy approach requires
+explicit `VERCEL_GIT_*` env vars to track git provenance.
+
+---
 
 ## JOB-7eb1d30a VERIFICATION FINDINGS (current agent)
 

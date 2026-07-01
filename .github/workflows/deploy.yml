@@ -31,4 +31,12 @@ jobs:
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel
+        env:
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+          VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
+          VERCEL_GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'manual deploy' }}
+          VERCEL_GIT_COMMIT_AUTHOR_NAME: ${{ github.event.head_commit.author.name || github.actor }}
+          VERCEL_GIT_REPO_SLUG: wardlist
+          VERCEL_GIT_REPO_OWNER: Agyeman-Enterprises
+          VERCEL_GIT_PROVIDER: github
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
