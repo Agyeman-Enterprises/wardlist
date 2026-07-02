@@ -13,6 +13,9 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +82,7 @@ jobs:
             await github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              deployment_id: '${{ steps.gh_deploy.outputs.deployment_id }}',
+              deployment_id: Number('${{ steps.gh_deploy.outputs.deployment_id }}'),
               state: 'success',
               environment: 'Production',
               environment_url: 'https://wardlist.vercel.app',
@@ -95,7 +98,7 @@ jobs:
             await github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              deployment_id: '${{ steps.gh_deploy.outputs.deployment_id }}',
+              deployment_id: Number('${{ steps.gh_deploy.outputs.deployment_id }}'),
               state: 'failure',
               environment: 'Production',
               environment_url: 'https://wardlist.vercel.app',
